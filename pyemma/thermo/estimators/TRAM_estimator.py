@@ -17,6 +17,7 @@
 
 import numpy as _np
 from six.moves import range
+from pyemma.util.types import ensure_int_vector_or_None
 from pyemma._base.estimator import Estimator as _Estimator
 from pyemma._base.progress import ProgressReporter as _ProgressReporter
 from pyemma.thermo import MEMM as _MEMM
@@ -112,6 +113,10 @@ class TRAM(_Estimator, _MEMM, _ProgressReporter):
         N_dtram_accelerations says how many times the dTRAM-like update
         step should be applied in every iteration of the TRAM equations.
         Currently this is only effective if direct_space=True.
+    user_active_set : list of integers, optional, default=None
+        If given, a set of valid state indices. All visits and transitions
+        outside this set are treated as if they didn't exist. The active sets
+        sets can only contain states that are in user_active_set.
     init : str, optional, default=None
         Use a specific initialization for self-consistent iteration:
 
@@ -144,6 +149,7 @@ class TRAM(_Estimator, _MEMM, _ProgressReporter):
         ground_state=None, nstates_full=None, equilibrium=None,
         maxiter=10000, maxerr=1.0E-15, save_convergence_info=0, dt_traj='1 step',
         nn=None, connectivity_factor=1.0, direct_space=False, N_dtram_accelerations=0,
+        user_active_set=None,
         callback=None,
         init='mbar', init_maxiter=5000, init_maxerr=1.0E-8,
         overcounting_factor=1.0):
@@ -171,6 +177,7 @@ class TRAM(_Estimator, _MEMM, _ProgressReporter):
         self.init_maxerr = init_maxerr
         self.overcounting_factor = overcounting_factor
         self.active_set = None
+        self.user_active_set = ensure_int_vector_or_None(user_active_set)
         self.biased_conf_energies = None
         self.mbar_therm_energies = None
         self.log_lagrangian_mult = None
@@ -258,6 +265,7 @@ class TRAM(_Estimator, _MEMM, _ProgressReporter):
             equilibrium_state_counts=self.equilibrium_state_counts_full,
             ttrajs=ttrajs+equilibrium_ttrajs, dtrajs=dtrajs_full+equilibrium_dtrajs_full, bias_trajs=self.btrajs+self.equilibrium_btrajs,
             nn=self.nn, factor=self.connectivity_factor,
+            user_selection=self.user_active_set,
             callback=_IterationProgressIndicatorCallBack(self, 'finding connected set', 'cset'))
         self.active_set = pcset
 
