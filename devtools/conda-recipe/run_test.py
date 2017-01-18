@@ -3,6 +3,7 @@ import os
 import sys
 import pytest
 import shutil
+import pkg_resources
 
 test_pkg = 'pyemma'
 cover_pkg = test_pkg
@@ -10,9 +11,12 @@ cover_pkg = test_pkg
 junit_xml = os.path.join(os.getenv('CIRCLE_TEST_REPORTS', '.'), 'junit.xml')
 
 if os.getenv('CONDA_BUILD', False):
-    pytest_cfg = os.path.join(os.getenv('RECIPE_DIR'), '../..', 'setup.cfg')
+    pytest_cfg = pkg_resources.resource_filename(test_pkg, 'setup.cfg')
 else:
-    pytest_cfg = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../setup.cfg')
+    pytest_cfg = os.path.join(os.path.abspath(os.path.dirname(__file__)), '../../setup.cfg')
+
+print("Using pytest config file: %s" % pytest_cfg)
+assert os.path.exists(pytest_cfg), "pytest cfg not found"
 
 # chdir to an path outside of conda-bld, which is known to persist the build phase
 run_dir = tempfile.mkdtemp()
@@ -26,7 +30,7 @@ pytest_args = ("-v --pyargs {test_pkg} "
                "--cov={cover_pkg} "
                "--cov-report=xml "
                "--doctest-modules "
-               "-n 2 "# -p no:xdist" # disable xdist in favour of coverage plugin
+               #"-n 2 "# -p no:xdist" # disable xdist in favour of coverage plugin
                "--junit-xml={junit_xml} "
                "-c {pytest_cfg} "
                .format(test_pkg=test_pkg, cover_pkg=cover_pkg,

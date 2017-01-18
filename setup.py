@@ -92,7 +92,9 @@ def extensions():
 
     import mdtraj
     from numpy import get_include as _np_inc
+    from scipy import get_include as _sc_inc
     np_inc = _np_inc()
+    sc_inc = _sc_inc()
 
     exts = []
 
@@ -112,7 +114,7 @@ def extensions():
                   ],
                   libraries=[lib_prefix+'theobald'],
                   library_dirs=[mdtraj.capi()['lib_dir']],
-                  extra_compile_args=['-std=c99', '-g', '-O3', '-pg'])
+                  extra_compile_args=['-std=c99', '-g', '-O3'])
     kmeans_module = \
         Extension('pyemma.coordinates.clustering.kmeans_clustering',
                   sources=[
@@ -127,12 +129,18 @@ def extensions():
                   extra_compile_args=['-std=c99'])
 
     covar_module = \
-        Extension('pyemma._ext.variational.covar_c.covartools',
-                  sources=['pyemma/_ext/variational/covar_c/covartools.pyx',
-                           'pyemma/_ext/variational/covar_c/_covartools.c'],
-                  include_dirs=['pyemma/_ext/variational/covar_c/',
+        Extension('pyemma._ext.variational.estimators.covar_c.covartools',
+                  sources=['pyemma/_ext/variational/estimators/covar_c/covartools.pyx',
+                           'pyemma/_ext/variational/estimators/covar_c/_covartools.c'],
+                  include_dirs=['pyemma/_ext/variational/estimators/covar_c/',
                                 np_inc,
                                 ],
+                  extra_compile_args=['-std=c99', '-O3'])
+
+    eig_qr_module = \
+        Extension('pyemma._ext.variational.solvers.eig_qr.eig_qr',
+                  sources=['pyemma/_ext/variational/solvers/eig_qr/eig_qr.pyx'],
+                  include_dirs=['pyemma/_ext/variational/solvers/eig_qr/', np_inc, sc_inc],
                   extra_compile_args=['-std=c99', '-O3'])
 
     orderedset = \
@@ -144,7 +152,8 @@ def extensions():
     exts += [regspatial_module,
              kmeans_module,
              covar_module,
-             orderedset,
+             eig_qr_module,
+             orderedset
              ]
 
     if not USE_CYTHON:
@@ -279,13 +288,14 @@ if len(sys.argv) == 1 or (len(sys.argv) >= 2 and ('--help' in sys.argv[1:] or
 else:
     # setuptools>=2.2 can handle setup_requires
     metadata['setup_requires'] = ['numpy>=1.7.0',
+                                  'scipy',
                                   'mdtraj>=1.7.0',
-                                  'nose',
                                   ]
 
     metadata['package_data'] = {
-                                'pyemma': ['pyemma.cfg', 'logging.yml', '_extensions.json'],
+                                'pyemma': ['pyemma.cfg', 'logging.yml', '_extensions.json', 'setup.cfg'],
                                 'pyemma.coordinates.tests': ['data/*'],
+                                'pyemma.msm.tests': ['data/*'],
                                 'pyemma.datasets': ['*.npz'],
                                 'pyemma.util.tests': ['data/*'],
                                 }
@@ -294,6 +304,10 @@ else:
     if os.path.exists('.git'):
         warnings.warn('using git, require cython')
         metadata['setup_requires'] += ['cython>=0.22']
+
+        # copy setup.cfg to the package so we can include it easily later on
+        import shutil
+        shutil.copy('setup.cfg', 'pyemma')
 
     # only require numpy and extensions in case of building/installing
     metadata['ext_modules'] = lazy_cythonize(callback=extensions)
