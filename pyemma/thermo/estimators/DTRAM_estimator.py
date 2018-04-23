@@ -54,7 +54,7 @@ class DTRAM(_Estimator, _MEMM, ThermoBase):
     def __init__(
         self, bias_energies_full, lag, count_mode='sliding', connectivity='reversible_pathways',
         maxiter=10000, maxerr=1.0E-15, save_convergence_info=0, dt_traj='1 step',
-        init=None, init_maxiter=10000, init_maxerr=1.0E-8):
+        init=None, init_maxiter=10000, init_maxerr=1.0E-8, mincount_connectivity=0):
         r""" Discrete Transition(-based) Reweighting Analysis Method
 
         Parameters
@@ -95,6 +95,11 @@ class DTRAM(_Estimator, _MEMM, ThermoBase):
               Not recommended!
             * None : assume that everything is connected. For debugging.
             For more details see :func:`thermotools.cset.compute_csets_dTRAM`.
+        mincount_connectivity : float or '1/n', default=0
+            minimum number of counts to consider a connection between two Markov states.
+            Counts lower than that will count zero in the connectivity check and
+            may thus separate the resulting transition matrix. If mincount_connectivity
+            is '1/n' the value of n evaluates to the number of states (per ensemble).
         maxiter : int, optional, default=10000
             The maximum number of self-consistent iterations before the estimator exits unsuccessfully.
         maxerr : float, optional, default=1.0E-15
@@ -177,6 +182,7 @@ class DTRAM(_Estimator, _MEMM, ThermoBase):
         self.therm_energies = None
         self.conf_energies = None
         self.log_lagrangian_mult = None
+        self.mincount_connectivity = mincount_connectivity
 
     def estimate(self, trajs):
         """
@@ -219,7 +225,8 @@ class DTRAM(_Estimator, _MEMM, ThermoBase):
         # restrict to connected set
         C_sum = self.count_matrices_full.sum(axis=0)
         # TODO: use improved cset
-        _, cset = _cset.compute_csets_dTRAM(self.connectivity, self.count_matrices_full)
+        _, cset = _cset.compute_csets_dTRAM(self.connectivity, self.count_matrices_full,
+                                            mincount_connectivity=self.mincount_connectivity)
         self.active_set = cset
         # correct counts
         self.count_matrices = self.count_matrices_full[:, cset[:, _np.newaxis], cset]

@@ -76,7 +76,7 @@ class TRAM(_Estimator, _MEMM, ThermoBase):
         nn=None, connectivity_factor=1.0, direct_space=False, N_dtram_accelerations=0,
         callback=None,
         init='mbar', init_maxiter=5000, init_maxerr=1.0E-8,
-        overcounting_factor=1.0):
+        overcounting_factor=1.0, mincount_connectivity=0):
         r"""Transition(-based) Reweighting Analysis Method
 
         Parameters
@@ -136,6 +136,11 @@ class TRAM(_Estimator, _MEMM, ThermoBase):
               all thermodynamic states and taking it's largest strongly connected set.
               Not recommended!
             For more details see :func:`thermotools.cset.compute_csets_TRAM`.
+        mincount_connectivity : float or '1/n', default=0
+            minimum number of counts to consider a connection between two Markov states.
+            Counts lower than that will count zero in the connectivity check and
+            may thus separate the resulting transition matrix. If mincount_connectivity
+            is '1/n' the value of n evaluates to the number of states (per ensemble).
         nstates_full : int, optional, default=None
             Number of cluster centers, i.e., the size of the full set of states.
         equilibrium : list of booleans, optional
@@ -234,6 +239,7 @@ class TRAM(_Estimator, _MEMM, ThermoBase):
         self.mbar_therm_energies = None
         self.log_lagrangian_mult = None
         self.loglikelihoods = None
+        self.mincount_connectivity = mincount_connectivity
 
     def estimate(self, X, **params):
         """
@@ -320,7 +326,8 @@ class TRAM(_Estimator, _MEMM, ThermoBase):
                 equilibrium_state_counts=self.equilibrium_state_counts_full,
                 ttrajs=ttrajs+equilibrium_ttrajs, dtrajs=dtrajs_full+equilibrium_dtrajs_full, bias_trajs=self.btrajs+self.equilibrium_btrajs,
                 nn=self.nn, factor=self.connectivity_factor,
-                callback=_IterationProgressIndicatorCallBack(pg, 'finding connected set', stage=stage))
+                callback=_IterationProgressIndicatorCallBack(pg, 'finding connected set', stage=stage),
+                mincount_connectivity=self.mincount_connectivity)
             self.active_set = pcset
 
         # check for empty states

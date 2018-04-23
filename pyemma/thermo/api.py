@@ -250,7 +250,7 @@ def estimate_umbrella_sampling(
             maxiter=maxiter, maxerr=maxerr, save_convergence_info=save_convergence_info,
             dt_traj=dt_traj, **parsed_kwargs)
     elif estimator == 'dtram':
-        allowed_keys = ['count_mode', 'connectivity']
+        allowed_keys = ['count_mode', 'connectivity', 'mincount_connectivity']
         parsed_kwargs = dict([(i, kwargs[i]) for i in allowed_keys if i in kwargs])
         estimator_obj = dtram(
             ttrajs, us_dtrajs + md_dtrajs,
@@ -261,7 +261,7 @@ def estimate_umbrella_sampling(
             **parsed_kwargs)
     elif estimator == 'tram':
         allowed_keys = [
-            'count_mode', 'connectivity', 'connectivity_factor','nn',
+            'count_mode', 'connectivity', 'connectivity_factor','nn', 'mincount_connectivity',
             'direct_space', 'N_dtram_accelerations', 'equilibrium', 'overcounting_factor', 'callback']
         parsed_kwargs = dict([(i, kwargs[i]) for i in allowed_keys if i in kwargs])
         estimator_obj = tram(
@@ -431,7 +431,7 @@ def estimate_multi_temperature(
             maxiter=maxiter, maxerr=maxerr, save_convergence_info=save_convergence_info,
             dt_traj=dt_traj, **parsed_kwargs)
     elif estimator == 'dtram':
-        allowed_keys = ['count_mode', 'connectivity']
+        allowed_keys = ['count_mode', 'connectivity', 'mincount_connectivity']
         parsed_kwargs = dict([(i, kwargs[i]) for i in allowed_keys if i in kwargs])
         estimator_obj = dtram(
             ttrajs, dtrajs,
@@ -442,7 +442,7 @@ def estimate_multi_temperature(
             **parsed_kwargs)
     elif estimator == 'tram':
         allowed_keys = [
-            'count_mode', 'connectivity', 'connectivity_factor','nn',
+            'count_mode', 'connectivity', 'connectivity_factor','nn', 'mincount_connectivity',
             'direct_space', 'N_dtram_accelerations', 'equilibrium', 'overcounting_factor', 'callback']
         parsed_kwargs = dict([(i, kwargs[i]) for i in allowed_keys if i in kwargs])
         estimator_obj = tram(
@@ -466,7 +466,8 @@ def tram(
     count_mode='sliding', connectivity='post_hoc_RE',
     maxiter=10000, maxerr=1.0E-15, save_convergence_info=0, dt_traj='1 step',
     connectivity_factor=1.0, nn=None, direct_space=False, N_dtram_accelerations=0, callback=None,
-    init='mbar', init_maxiter=10000, init_maxerr=1e-8, equilibrium=None, overcounting_factor=1.0):
+    init='mbar', init_maxiter=10000, init_maxerr=1e-8, equilibrium=None, overcounting_factor=1.0,
+    mincount_connectivity=0):
     r"""
     Transition-based reweighting analysis method
 
@@ -553,6 +554,11 @@ def tram(
           all thermodynamic states and taking it's largest strongly connected set.
           Not recommended!
         For more details see :func:`thermotools.cset.compute_csets_TRAM`.
+    mincount_connectivity : float or '1/n', default=0
+        minimum number of counts to consider a connection between two Markov states.
+        Counts lower than that will count zero in the connectivity check and
+        may thus separate the resulting transition matrix. If mincount_connectivity
+        is '1/n' the value of n evaluates to the number of states (per ensemble).
     connectivity_factor : float, optional, default=1.0
         Only needed if connectivity='post_hoc_RE' or 'BAR_variance'. Values
         greater than 1.0 weaken the connectivity conditions. For 'post_hoc_RE'
@@ -692,7 +698,8 @@ def tram(
                 dt_traj=dt_traj, connectivity_factor=connectivity_factor, nn=nn,
                 direct_space=direct_space, N_dtram_accelerations=N_dtram_accelerations,
                 callback=callback, init=init, init_maxiter=init_maxiter, init_maxerr=init_maxerr,
-                equilibrium=equilibrium, overcounting_factor=overcounting_factor).estimate((ttrajs, dtrajs, bias))
+                equilibrium=equilibrium, overcounting_factor=overcounting_factor,
+                mincount_connectivity=mincount_connectivity).estimate((ttrajs, dtrajs, bias))
             tram_estimators.append(t)
             pg.update(1)
     _assign_unbiased_state_label(tram_estimators, unbiased_state)
@@ -705,7 +712,7 @@ def dtram(
     ttrajs, dtrajs, bias, lag, unbiased_state=None,
     count_mode='sliding', connectivity='reversible_pathways',
     maxiter=10000, maxerr=1.0E-15, save_convergence_info=0, dt_traj='1 step',
-    init=None, init_maxiter=10000, init_maxerr=1.0E-8):
+    init=None, init_maxiter=10000, init_maxerr=1.0E-8, mincount_connectivity=0):
     r"""
     Discrete transition-based reweighting analysis method
 
@@ -760,6 +767,11 @@ def dtram(
           Not recommended!
         * None : assume that everything is connected. For debugging.
         For more details see :func:`thermotools.cset.compute_csets_dTRAM`.
+    mincount_connectivity : float or '1/n', default=0
+        minimum number of counts to consider a connection between two Markov states.
+        Counts lower than that will count zero in the connectivity check and
+        may thus separate the resulting transition matrix. If mincount_connectivity
+        is '1/n' the value of n evaluates to the number of states (per ensemble).
     maxiter : int, optional, default=10000
         The maximum number of dTRAM iterations before the estimator exits unsuccessfully.
     maxerr : float, optional, default=1e-15
@@ -897,7 +909,7 @@ def dtram(
                 count_mode=count_mode, connectivity=connectivity,
                 maxiter=maxiter, maxerr=maxerr, save_convergence_info=save_convergence_info,
                 dt_traj=dt_traj, init=init, init_maxiter=init_maxiter,
-                init_maxerr=init_maxerr).estimate((ttrajs, dtrajs))
+                init_maxerr=init_maxerr, mincount_connectivity=mincount_connectivity).estimate((ttrajs, dtrajs))
             dtram_estimators.append(d)
             pg.update(1)
     _assign_unbiased_state_label(dtram_estimators, unbiased_state)
