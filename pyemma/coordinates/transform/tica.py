@@ -27,7 +27,7 @@ from decorator import decorator
 from pyemma._base.serialization.serialization import SerializableMixIn
 
 from pyemma._base.model import Model
-from pyemma._ext.variational.solvers.direct import eig_corr
+from pyemma._ext.variational.solvers.direct import eig_corr, schur_corr, valid_schur_dims
 from pyemma._ext.variational.util import ZeroRankError
 from pyemma.coordinates.data._base.transformer import StreamingEstimationTransformer
 from pyemma.coordinates.estimation.covariance import LaggedCovariance
@@ -63,7 +63,7 @@ class TICA(StreamingEstimationTransformer, SerializableMixIn):
     __serialize_version = 0
 
     def __init__(self, lag, dim=-1, var_cutoff=0.95, kinetic_map=True, commute_map=False, epsilon=1e-6,
-                 stride=1, skip=0, reversible=True, weights=None, ncov_max=float('inf')):
+                 stride=1, skip=0, reversible=True, weights=None, ncov_max=float('inf'), schur=False):
         r""" Time-lagged independent component analysis (TICA) [1]_, [2]_, [3]_.
 
         Parameters
@@ -160,7 +160,8 @@ class TICA(StreamingEstimationTransformer, SerializableMixIn):
         # this instance will be set by partial fit.
         self._covar = None
         self.set_params(lag=lag, dim=dim, var_cutoff=var_cutoff, kinetic_map=kinetic_map, commute_map=commute_map,
-                        epsilon=epsilon, reversible=reversible, stride=stride, skip=skip, weights=weights, ncov_max=ncov_max)
+                        epsilon=epsilon, reversible=reversible, stride=stride, skip=skip, weights=weights,
+                        ncov_max=ncov_max, schur=schur)
 
     @property
     def lag(self):
@@ -195,6 +196,9 @@ class TICA(StreamingEstimationTransformer, SerializableMixIn):
         else:  # We know nothing. Give up
             raise RuntimeError('Requested dimension, but the dimension depends on the cumulative variance and the '
                                'transformer has not yet been estimated. Call estimate() before.')
+        if self.schur:
+            if d not in self._valid_dims:
+                warnings.warn('Choice of dimensions (%d) cuts through a Schur block. Consider using +/-1 dimension.' % d)
         return d
 
     @property
@@ -296,7 +300,11 @@ class TICA(StreamingEstimationTransformer, SerializableMixIn):
         # diagonalize with low rank approximation
         self.logger.debug("diagonalize Cov and Cov_tau.")
         try:
-            eigenvalues, eigenvectors = eig_corr(self.cov, self.cov_tau, self.epsilon, sign_maxelement=True)
+            if self.schur:
+                eigenvalues, eigenvectors, self._T = schur_corr(self.cov, self.cov_tau, epsilon=self.epsilon, return_T=True)
+                self._valid_dims = valid_schur_dims(self._T)
+            else:
+                eigenvalues, eigenvectors = eig_corr(self.cov, self.cov_tau, self.epsilon, sign_maxelement=True)
         except ZeroRankError:
             raise ZeroRankError('All input features are constant in all time steps. No dimension would be left after dimension reduction.')
         if self.kinetic_map and self.commute_map:

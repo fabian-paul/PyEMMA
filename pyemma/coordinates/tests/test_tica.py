@@ -194,6 +194,16 @@ class TestTICA_Basic(unittest.TestCase):
         t = tica(chunksize=None)
         assert t.default_chunksize == t.chunksize == t._FALLBACK_CHUNKSIZE
 
+    def test_schur(self):
+        # make it deterministic
+        with numpy_random_seed(0):
+            data = np.random.randn(100, 10)
+        tica_obj = api.tica(data=data, lag=10, dim=1, schur=True, reversible=False, kinetic_map=False)
+        Y = tica_obj._transform_array(data)
+        # right shape
+        assert types.is_float_matrix(Y)
+        assert Y.shape[0] == 100
+        assert Y.shape[1] == 1, Y.shape[1]
 
 class TestTICAExtensive(unittest.TestCase):
     @classmethod
@@ -627,5 +637,31 @@ class TestTICAErrors(unittest.TestCase):
             tica_obj.fit_transform(o)
 
 
+class TestTICASchur(unittest.TestCase):
+    def test_tica_schur_self_consistency(self):
+        dim = 6
+        N_frames = [123, 456, 789]
+        N_trajs = len(N_frames)
+        A = np.random.randn(dim, dim)
+        trajs = []
+        mean = np.random.randn(dim)
+        for i in range(N_trajs):
+            # set up data
+            white = np.random.randn(N_frames[i], dim)
+            brown = np.cumsum(white, axis=0)
+            correlated = np.dot(brown, A)
+            trajs.append(correlated + mean)
+
+        tica_obj = tica(trajs, lag=50, kinetic_map=False, commute_map=False, schur=True, dim=6, reversible=False)
+        ics = tica_obj.get_output()
+        tica_ics = tica(ics, lag=50, kinetic_map=False, commute_map=False, schur=True, reversible=False)
+        np.testing.assert_allclose(tica_ics.cov_tau, tica_obj._T, atol=1E-4)
+
+        # test that eigenvalue are sorted according to their distance to 1+0i
+        dist = np.abs(tica_obj.eigenvalues - 1)
+        assert np.all(dist[1:] + np.finfo(np.float32).eps*10 >= dist[0:-1])
+
+
 if __name__ == "__main__":
     unittest.main()
+

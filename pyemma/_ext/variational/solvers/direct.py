@@ -276,3 +276,55 @@ def eig_corr(C0, Ct, epsilon=1e-10, method='QR', sign_maxelement=False):
 
     # return result
     return l, R
+
+def sort_schur(T, Z):
+    # TODO: replace by python implementation, once it is ready
+    import os
+    import tempfile
+    import socket
+    import threading
+    tempid = '%s/%s-%d-%d-' % (tempfile.gettempdir(), socket.gethostname(), os.getpid(), threading.get_ident())
+    _np.savetxt(tempid + 'unordered-T.txt', T)
+    _np.savetxt(tempid + 'unordered-Z.txt', Z)
+    path = os.path.dirname(os.path.abspath(__file__))
+    erl = os.system(
+        'matlab -nodisplay -nosplash -nodesktop -nojvm -r "global tid; tid=\'%s\'; run(\'%s/sortschur.m\'); exit" >/dev/null' % (
+        tempid, path))
+    if erl != 0:
+        raise RuntimeError('Could not sort Schur vectors.')
+    T = _np.loadtxt(tempid + 'ordered-T.txt')
+    Z = _np.loadtxt(tempid + 'ordered-Z.txt')
+    os.unlink(tempid + 'unordered-T.txt')
+    os.unlink(tempid + 'unordered-Z.txt')
+    os.unlink(tempid + 'ordered-T.txt')
+    os.unlink(tempid + 'ordered-Z.txt')
+    return T, Z
+
+
+def valid_schur_dims(T):
+    r = _np.where(_np.abs(_np.diag(T, -1)) > 100 * _np.finfo(_np.float64).eps)[0]
+    s = _np.setdiff1d(_np.arange(T.shape[0] + 1), r + 1)
+    return s
+
+
+def schur_corr(C0, Ct, epsilon=1e-10,  method='QR', sort=True, return_T=False):
+    import scipy
+    L = spd_inv_split(C0, epsilon=epsilon, method=method, canonical_signs=True)
+    Ct_trans = _np.dot(_np.dot(L.T, Ct), L)
+    T, Z = scipy.linalg.schur(Ct_trans)
+
+
+    if sort:
+        T, Z = sort_schur(T, Z)
+
+    # transform the Schur vectors back to the old basis
+    R = _np.dot(L, Z)
+
+    eigenvalues = _np.diag(scipy.linalg.rsf2csf(T, Z)[0])
+
+    if return_T:
+        return eigenvalues, R, T
+    else:
+        return eigenvalues, R
+
+
