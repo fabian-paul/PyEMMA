@@ -638,8 +638,8 @@ class TestTICAErrors(unittest.TestCase):
 
 
 class TestTICASchur(unittest.TestCase):
-    def test_tica_schur_self_consistency(self):
-        dim = 6
+    def do_test(self, z):
+        dim = 12
         N_frames = [123, 456, 789]
         N_trajs = len(N_frames)
         A = np.random.randn(dim, dim)
@@ -652,16 +652,25 @@ class TestTICASchur(unittest.TestCase):
             correlated = np.dot(brown, A)
             trajs.append(correlated + mean)
 
-        tica_obj = tica(trajs, lag=50, kinetic_map=False, commute_map=False, schur=True, dim=6, reversible=False)
+        tica_obj = tica(trajs, lag=50, kinetic_map=False, commute_map=False, schur=True, dim=12, reversible=False, z=z)
         ics = tica_obj.get_output()
-        tica_ics = tica(ics, lag=50, kinetic_map=False, commute_map=False, schur=True, reversible=False)
+        tica_ics = tica(ics, lag=50, kinetic_map=False, commute_map=False, schur=True, reversible=False, z=z)
         np.testing.assert_allclose(tica_ics.cov_tau, tica_obj._T, atol=1E-4)
 
-        # test that eigenvalue are sorted according to their distance to 1+0i
-        dist = np.abs(tica_obj.eigenvalues - 1)
-        assert np.all(dist[1:] + np.finfo(np.float32).eps*10 >= dist[0:-1])
+        if np.isinf(z):
+            # test that eigenvalue are ordered by magnitude
+            dist = np.abs(tica_obj.eigenvalues)
+        else:
+            # test that eigenvalue are sorted according to their distance to
+            dist = np.abs(tica_obj.eigenvalues - z)[::-1]
+        assert np.all(dist[0:-1] + np.finfo(np.float64).eps*10 >= dist[1:])
+        #print('eigenvalues are', tica_obj._eigenvalues_orig, file=sys.stderr)
+        #assert np.all(np.abs(tica_obj._eigenvalues_orig) <= 1 + np.finfo(np.float64).eps*10)
+
+    def test_tica_schur_self_consistency(self):
+        self.do_test(float('inf'))
+        self.do_test(1.0)
 
 
 if __name__ == "__main__":
     unittest.main()
-

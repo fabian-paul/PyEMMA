@@ -63,7 +63,7 @@ class TICA(StreamingEstimationTransformer, SerializableMixIn):
     __serialize_version = 0
 
     def __init__(self, lag, dim=-1, var_cutoff=0.95, kinetic_map=True, commute_map=False, epsilon=1e-6,
-                 stride=1, skip=0, reversible=True, weights=None, ncov_max=float('inf'), schur=False):
+                 stride=1, skip=0, reversible=True, weights=None, ncov_max=float('inf'), schur=False, z=1):
         r""" Time-lagged independent component analysis (TICA) [1]_, [2]_, [3]_.
 
         Parameters
@@ -161,7 +161,7 @@ class TICA(StreamingEstimationTransformer, SerializableMixIn):
         self._covar = None
         self.set_params(lag=lag, dim=dim, var_cutoff=var_cutoff, kinetic_map=kinetic_map, commute_map=commute_map,
                         epsilon=epsilon, reversible=reversible, stride=stride, skip=skip, weights=weights,
-                        ncov_max=ncov_max, schur=schur)
+                        ncov_max=ncov_max, schur=schur, z=z)
 
     @property
     def lag(self):
@@ -301,7 +301,7 @@ class TICA(StreamingEstimationTransformer, SerializableMixIn):
         self.logger.debug("diagonalize Cov and Cov_tau.")
         try:
             if self.schur:
-                eigenvalues, eigenvectors, self._T = schur_corr(self.cov, self.cov_tau, epsilon=self.epsilon, return_T=True)
+                eigenvalues, eigenvectors, self._T, self._eigenvalues_orig = schur_corr(self.cov, self.cov_tau, epsilon=self.epsilon, return_T=True, z=self.z)
                 self._valid_dims = valid_schur_dims(self._T)
             else:
                 eigenvalues, eigenvectors = eig_corr(self.cov, self.cov_tau, self.epsilon, sign_maxelement=True)

@@ -277,7 +277,7 @@ def eig_corr(C0, Ct, epsilon=1e-10, method='QR', sign_maxelement=False):
     # return result
     return l, R
 
-def sort_schur(T, Z):
+def sort_schur(T, Z, z=1.0):
     # TODO: replace by python implementation, once it is ready
     import os
     import tempfile
@@ -287,9 +287,13 @@ def sort_schur(T, Z):
     _np.savetxt(tempid + 'unordered-T.txt', T)
     _np.savetxt(tempid + 'unordered-Z.txt', Z)
     path = os.path.dirname(os.path.abspath(__file__))
-    erl = os.system(
-        'matlab -nodisplay -nosplash -nodesktop -nojvm -r "global tid; tid=\'%s\'; run(\'%s/sortschur.m\'); exit" >/dev/null' % (
-        tempid, path))
+    if _np.isinf(z):
+        target = 'Inf'
+    else:
+        target = '%f' % z
+    cmd = 'matlab -nodisplay -nosplash -nodesktop -nojvm -r "global tid; tid=\'%s\'; global target; target=%s; run(\'%s/sortschur.m\'); exit"' % (
+            tempid, target, path)
+    erl = os.system(cmd + ' >/dev/null')
     if erl != 0:
         raise RuntimeError('Could not sort Schur vectors.')
     T = _np.loadtxt(tempid + 'ordered-T.txt')
@@ -307,15 +311,16 @@ def valid_schur_dims(T):
     return s
 
 
-def schur_corr(C0, Ct, epsilon=1e-10,  method='QR', sort=True, return_T=False):
+def schur_corr(C0, Ct, epsilon=1e-10,  method='QR', sort=True, return_T=False, z=1.0):
     import scipy
     L = spd_inv_split(C0, epsilon=epsilon, method=method, canonical_signs=True)
     Ct_trans = _np.dot(_np.dot(L.T, Ct), L)
     T, Z = scipy.linalg.schur(Ct_trans)
 
+    eigenvalues_orig = _np.diag(scipy.linalg.rsf2csf(T, Z)[0])
 
     if sort:
-        T, Z = sort_schur(T, Z)
+        T, Z = sort_schur(T, Z, z=z)
 
     # transform the Schur vectors back to the old basis
     R = _np.dot(L, Z)
@@ -323,8 +328,8 @@ def schur_corr(C0, Ct, epsilon=1e-10,  method='QR', sort=True, return_T=False):
     eigenvalues = _np.diag(scipy.linalg.rsf2csf(T, Z)[0])
 
     if return_T:
-        return eigenvalues, R, T
+        return eigenvalues, R, T, eigenvalues_orig
     else:
-        return eigenvalues, R
+        return eigenvalues, R, eigenvalues_orig
 
 
