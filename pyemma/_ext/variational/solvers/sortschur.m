@@ -7,6 +7,11 @@ function sortschur()
   dlmwrite(strcat(tid, 'ordered-Z.txt'), Q, 'delimiter', ' ');
   dlmwrite(strcat(tid, 'ordered-T.txt'), R, 'delimiter', ' ');
 end
+
+%   The following code is from:
+%   J.H. Brandts
+%   Matlab code for sorted real Schur forms
+%   Numerical Linear Algebra with Applications 9(3):249-261 (2002)
 % ----------------------------------------- %
 
 function [Q,R,ap] = SRSchur(Q,R,z,b)
@@ -32,6 +37,7 @@ function [Q,R,ap] = SRSchur(Q,R,z,b)
 %
 % SEE ALSO: schur.m, rsf2csf.m
 
+ap = [];
 r = find(abs(diag(R,-1)) > 100*eps);
 s = 1:size(R,1)+1;
 s(r+1) = [];
