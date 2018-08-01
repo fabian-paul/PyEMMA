@@ -42,7 +42,7 @@ class TICA(TICABase, SerializableMixIn):
     __serialize_version = 0
 
     def __init__(self, lag, dim=-1, var_cutoff=0.95, kinetic_map=True, commute_map=False, epsilon=1e-6,
-                 stride=1, skip=0, reversible=True, weights=None, ncov_max=float('inf'), schur=False, z=1):
+                 stride=1, skip=0, reversible=True, weights=None, ncov_max=float('inf'), schur=False, z=float('inf')):
         r""" Time-lagged independent component analysis (TICA) [1]_, [2]_, [3]_.
 
         Parameters
