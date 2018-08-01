@@ -106,6 +106,14 @@ class TestMSMSimple(unittest.TestCase):
         pcca2 = msm.pcca(2)
         assert pcca2 is not pcca1
 
+    def test_rdl_recompute(self):
+        """ test for issue 1301. Should recompute RDL decomposition in case of new transition matrix. """
+        msm = estimate_markov_model(self.dtraj, self.tau)
+        ev1 = msm.eigenvectors_left(2)
+        msm.estimate(self.dtraj, lag=self.tau+1)
+        ev2 = msm.eigenvectors_left(2)
+        assert ev2 is not ev1
+
 
 class TestMSMRevPi(unittest.TestCase):
     r"""Checks if the MLMSM correctly handles the active set computation
@@ -147,17 +155,18 @@ class TestMSMDoubleWell(unittest.TestCase):
         cls.statdist = nu/nu.sum()
 
         cls.tau = 10
-        cls.msmrev = estimate_markov_model(cls.dtraj, cls.tau)
-        cls.msmrevpi = estimate_markov_model(cls.dtraj, cls.tau,
+        maxerr = 1e-12
+        cls.msmrev = estimate_markov_model(cls.dtraj, cls.tau ,maxerr=maxerr)
+        cls.msmrevpi = estimate_markov_model(cls.dtraj, cls.tau,maxerr=maxerr,
                                              statdist=cls.statdist)
-        cls.msm = estimate_markov_model(cls.dtraj, cls.tau, reversible=False)
+        cls.msm = estimate_markov_model(cls.dtraj, cls.tau, reversible=False, maxerr=maxerr)
 
         """Sparse"""
-        cls.msmrev_sparse = estimate_markov_model(cls.dtraj, cls.tau, sparse=True)
-        cls.msmrevpi_sparse = estimate_markov_model(cls.dtraj, cls.tau,
+        cls.msmrev_sparse = estimate_markov_model(cls.dtraj, cls.tau, sparse=True, maxerr=maxerr)
+        cls.msmrevpi_sparse = estimate_markov_model(cls.dtraj, cls.tau,maxerr=maxerr,
                                                     statdist=cls.statdist,
                                                     sparse=True)
-        cls.msm_sparse = estimate_markov_model(cls.dtraj, cls.tau, reversible=False, sparse=True)
+        cls.msm_sparse = estimate_markov_model(cls.dtraj, cls.tau, reversible=False, sparse=True, maxerr=maxerr)
 
     # ---------------------------------
     # SCORE

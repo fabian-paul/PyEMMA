@@ -17,7 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from __future__ import absolute_import
-from six.moves import range
 from pyemma.util.annotators import alias, aliased, fix_docs
 
 import numpy as _np
@@ -180,14 +179,20 @@ class MaximumLikelihoodHMSM(_Estimator, _HMSM):
             # by default use lag as stride (=lag sampling), because we currently have no better theory for deciding
             # how many uncorrelated counts we can make
             self.stride = self.lag
-            # get a quick estimate from the spectral radius of the nonreversible
+            # get a quick estimate from the spectral radius of the non-reversible
             from pyemma.msm import estimate_markov_model
             msm_nr = estimate_markov_model(dtrajs, lag=self.lag, reversible=False, sparse=False,
                                            connectivity='largest', dt_traj=self.timestep_traj)
             # if we have more than nstates timescales in our MSM, we use the next (neglected) timescale as an
             # estimate of the decorrelation time
             if msm_nr.nstates > self.nstates:
-                corrtime = max(1, msm_nr.timescales()[self.nstates-1])
+                # because we use non-reversible msm, we want to silence the ImaginaryEigenvalueWarning
+                import warnings
+                from msmtools.util.exceptions import ImaginaryEigenValueWarning
+                with warnings.catch_warnings():
+                    warnings.filterwarnings('ignore', category=ImaginaryEigenValueWarning,
+                                            module='msmtools.analysis.dense.decomposition')
+                    corrtime = max(1, msm_nr.timescales()[self.nstates - 1])
                 # use the smaller of these two pessimistic estimates
                 self.stride = int(min(self.lag, 2*corrtime))
 
@@ -270,7 +275,9 @@ class MaximumLikelihoodHMSM(_Estimator, _HMSM):
             states_subset = 'populous-strong'
 
         # return submodel (will return self if all None)
-        return self.submodel(states=states_subset, obs=observe_subset, mincount_connectivity=self.mincount_connectivity)
+        return self.submodel(states=states_subset, obs=observe_subset,
+                             mincount_connectivity=self.mincount_connectivity,
+                             inplace=True)
 
     @property
     def msm_init(self):
@@ -357,7 +364,7 @@ class MaximumLikelihoodHMSM(_Estimator, _HMSM):
     # Submodel functions using estimation information (counts)
     ################################################################################
 
-    def submodel(self, states=None, obs=None, mincount_connectivity='1/n'):
+    def submodel(self, states=None, obs=None, mincount_connectivity='1/n', inplace=False):
         """Returns a HMM with restricted state space
 
         Parameters
@@ -380,6 +387,9 @@ class MaximumLikelihoodHMSM(_Estimator, _HMSM):
             Counts lower than that will count zero in the connectivity check and
             may thus separate the resulting transition matrix. Default value:
             1/nstates.
+        inplace : Bool
+            if True, submodel is estimated in-place, overwriting the original
+            estimator and possibly discarding information. Default value: False
 
         Returns
         -------
@@ -402,6 +412,12 @@ class MaximumLikelihoodHMSM(_Estimator, _HMSM):
         S = _tmatrix_disconnected.connected_sets(self.count_matrix,
                                                  mincount_connectivity=mincount_connectivity,
                                                  strong=True)
+        if inplace:
+            submodel_estimator = self
+        else:
+            from copy import deepcopy
+            submodel_estimator = deepcopy(self)
+
         if len(S) > 1:
             # keep only non-negligible transitions
             C = _np.zeros(self.count_matrix.shape)
@@ -430,13 +446,13 @@ class MaximumLikelihoodHMSM(_Estimator, _HMSM):
                 score = [self.count_matrix[_np.ix_(s, s)].sum() for s in S]
             states = _np.array(S[_np.argmax(score)])
         if states is not None:  # sub-transition matrix
-            self._active_set = states
+            submodel_estimator._active_set = states
             C = C[_np.ix_(states, states)].copy()
             P = P[_np.ix_(states, states)].copy()
             P /= P.sum(axis=1)[:, None]
             pi = _tmatrix_disconnected.stationary_distribution(P, C)
-            self.initial_count = self.initial_count[states]
-            self.initial_distribution = self.initial_distribution[states] / self.initial_distribution[states].sum()
+            submodel_estimator.initial_count = self.initial_count[states]
+            submodel_estimator.initial_distribution = self.initial_distribution[states] / self.initial_distribution[states].sum()
 
         # determine observed states
         if str(obs) == 'nonempty':
@@ -444,15 +460,16 @@ class MaximumLikelihoodHMSM(_Estimator, _HMSM):
             obs = _np.where(msmest.count_states(self.discrete_trajectories_lagged) > 0)[0]
         if obs is not None:
             # set observable set
-            self._observable_set = obs
-            self._nstates_obs = obs.size
+            submodel_estimator._observable_set = obs
+            submodel_estimator._nstates_obs = obs.size
             # full2active mapping
             _full2obs = -1 * _np.ones(self._nstates_obs_full, dtype=int)
             _full2obs[obs] = _np.arange(len(obs), dtype=int)
             # observable trajectories
-            self._dtrajs_obs = []
+            submodel_estimator._dtrajs_obs = []
             for dtraj in self.discrete_trajectories_full:
-                self._dtrajs_obs.append(_full2obs[dtraj])
+                submodel_estimator._dtrajs_obs.append(_full2obs[dtraj])
+
             # observation matrix
             B = self.observation_probabilities[_np.ix_(states, obs)].copy()
             B /= B.sum(axis=1)[:, None]
@@ -460,10 +477,10 @@ class MaximumLikelihoodHMSM(_Estimator, _HMSM):
             B = self.observation_probabilities
 
         # set quantities back.
-        self.update_model_params(P=P, pobs=B, pi=pi)
-        self.count_matrix_EM = self.count_matrix[_np.ix_(states, states)]  # unchanged count matrix
-        self.count_matrix = C  # count matrix consistent with P
-        return self
+        submodel_estimator.update_model_params(P=P, pobs=B, pi=pi)
+        submodel_estimator.count_matrix_EM = self.count_matrix[_np.ix_(states, states)]  # unchanged count matrix
+        submodel_estimator.count_matrix = C  # count matrix consistent with P
+        return submodel_estimator
 
     def submodel_largest(self, strong=True, mincount_connectivity='1/n'):
         """ Returns the largest connected sub-HMM (convenience function)
@@ -625,7 +642,7 @@ class MaximumLikelihoodHMSM(_Estimator, _HMSM):
     # Model Validation
     ################################################################################
 
-    def cktest(self, mlags=10, conf=0.95, err_est=False, n_jobs=1, show_progress=True):
+    def cktest(self, mlags=10, conf=0.95, err_est=False, n_jobs=None, show_progress=True):
         """ Conducts a Chapman-Kolmogorow test.
 
         Parameters
@@ -641,7 +658,7 @@ class MaximumLikelihoodHMSM(_Estimator, _HMSM):
             compute errors also for all estimations (computationally expensive)
             If False, only the prediction will get error bars, which is often
             sufficient to validate a model.
-        n_jobs : int, default=1
+        n_jobs : int, default=None
             how many jobs to use during calculation
         show_progress : bool, default=True
             Show progressbars for calculation?

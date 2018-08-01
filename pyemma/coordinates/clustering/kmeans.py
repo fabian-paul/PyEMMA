@@ -31,6 +31,7 @@ import random
 import tempfile
 
 from pyemma._base.progress.reporter import ProgressReporterMixin
+from pyemma._base.serialization.serialization import SerializableMixIn
 from pyemma.coordinates.clustering.interface import AbstractClustering
 from pyemma.util.annotators import fix_docs
 from pyemma.util.units import bytes_to_string
@@ -40,6 +41,11 @@ import numpy as np
 
 
 __all__ = ['KmeansClustering', 'MiniBatchKmeansClustering']
+
+
+@contextmanager
+def _dummy():
+    yield
 
 
 @fix_docs
@@ -163,7 +169,7 @@ class KmeansClustering(AbstractClustering, ProgressReporterMixin):
         # check if we need to allocate memory.
         if hasattr(self, '_in_memory_chunks') and self._in_memory_chunks.size == size:
             assert hasattr(self, '_in_memory_chunks')
-            self.logger.info("re-use in memory data.")
+            self.logger.debug("re-use in memory data.")
             return
         elif self._check_resume_iteration() and not self._in_memory_chunks_set and not self.keep_data:
             self.logger.warning('Resuming kmeans iteration without the setting "keep_data=True", will re-create'
@@ -200,13 +206,13 @@ class KmeansClustering(AbstractClustering, ProgressReporterMixin):
 
     def _estimate(self, iterable, **kw):
         self._init_estimate()
-
+        ctx = _dummy() if 'data' not in self._progress_registered_stages else self._progress_context(stage='data')
         # collect the data only if, we have not done this previously (eg. keep_data=True)
         # or the centers are not initialized.
         if not self._check_resume_iteration() or not self._in_memory_chunks_set:
             resume_centers = self._check_resume_iteration()
             with iterable.iterator(return_trajindex=True, stride=self.stride,
-                                   chunk=self.chunksize, skip=self.skip) as it:
+                                   chunk=self.chunksize, skip=self.skip) as it, ctx:
                 # first pass: gather data and run k-means
                 first_chunk = True
                 for itraj, X in it:
@@ -238,9 +244,9 @@ class KmeansClustering(AbstractClustering, ProgressReporterMixin):
                                                                             callback)
             if code == 0:
                 self._converged = True
-                self.logger.info("Cluster centers converged after %i steps.", iterations + 1)
+                self.logger.debug("Cluster centers converged after %i steps.", iterations + 1)
             else:
-                self.logger.info("Algorithm did not reach convergence criterion"
+                self.logger.warn("Algorithm did not reach convergence criterion"
                                  " of %g in %i iterations. Consider increasing max_iter.",
                                  self.tolerance, self.max_iter)
 
@@ -274,9 +280,8 @@ class KmeansClustering(AbstractClustering, ProgressReporterMixin):
         if not self.n_clusters:
             self.n_clusters = min(int(math.sqrt(total_length)), 5000)
             self.logger.info("The number of cluster centers was not specified, "
-                              "using min(sqrt(N), 5000)=%s as n_clusters." % self.n_clusters)
-        from pyemma.coordinates.data import DataInMemory
-        if not isinstance(self, MiniBatchKmeansClustering) and not isinstance(self.data_producer, DataInMemory):
+                             "using min(sqrt(N), 5000)=%s as n_clusters." % self.n_clusters)
+        if not isinstance(self, MiniBatchKmeansClustering) and not self._source_from_memory(self.data_producer):
             n_chunks = self.data_producer.n_chunks(chunksize=self.chunksize, skip=self.skip, stride=self.stride)
             self._progress_register(n_chunks, description="creating data array", stage='data')
 
@@ -316,10 +321,7 @@ class KmeansClustering(AbstractClustering, ProgressReporterMixin):
                 context = self._progress_context(stage=0)
             else:
                 callback = None
-                @contextmanager
-                def dummy():
-                    yield
-                context = dummy()
+                context = _dummy()
             with context:
                 self.clustercenters = self._inst.init_centers_KMpp(self._in_memory_chunks, self.fixed_seed, self.n_jobs,
                                                                    callback)
@@ -332,8 +334,7 @@ class KmeansClustering(AbstractClustering, ProgressReporterMixin):
         # appends a true copy
         self._in_memory_chunks[self._t_total:self._t_total + len(X)] = X[:]
         self._t_total += len(X)
-        from pyemma.coordinates.data import DataInMemory
-        if not isinstance(self, MiniBatchKmeansClustering) and not isinstance(self.data_producer, DataInMemory):
+        if 'data' in self._progress_registered_stages:
             self._progress_update(1, stage='data')
 
         if last_chunk:

@@ -61,6 +61,19 @@ class Modifications(object):
         self._ops.append(('set', name, value))
         return self
 
+    def transform(self, function):
+        """
+
+        Parameters
+        ----------
+        function: callable
+            callable accepting the state dictionary, which will be modified in place.
+        """
+        if not callable(function):
+            raise ValueError('the transform input needs to be callable')
+        self._ops.append(('transform', function))
+        return self
+
     def list(self):
         return self._ops
 
@@ -100,10 +113,15 @@ class Modifications(object):
                     state[name] = func(state[name])
                     count += 1
             elif len(a) == 2:
-                action, value = a
-                if action == 'rm':
+                operation, value = a
+                if operation == 'rm':
                     state.pop(value, None)
                     count += 1
+                elif operation == 'transform':
+                    assert callable(value)
+                    value(state)
+                    count += 1
+
         assert count == len(modifications), 'was not able to process all modifications on state'
 
 
@@ -225,7 +243,7 @@ class SerializableMixIn(object):
             raise NotImplementedError('This feature is only available on Python3. Consider upgrading.')
         from pyemma._base.serialization.h5file import H5File
         try:
-            with H5File(file_name=file_name) as f:
+            with H5File(file_name=file_name, mode='a') as f:
                 f.add_serializable(model_name, obj=self, overwrite=overwrite, save_streaming_chain=save_streaming_chain)
         except Exception as e:
             msg = ('During saving the object {obj}") '

@@ -30,6 +30,8 @@ from __future__ import print_function, absolute_import
 
 import sys
 import os
+from distutils.log import info
+
 import versioneer
 import warnings
 from io import open
@@ -220,7 +222,7 @@ def get_cmdclass():
             if sys.platform == 'darwin':
                 import sysconfig
                 compiler = os.path.basename(sysconfig.get_config_var("CC"))
-                if str(compiler).startswith('clang'):
+                if 'clang' in str(compiler):
                     self.c_opts['unix'] += ['-stdlib=libc++', '-mmacosx-version-min=10.7']
 
             ct = self.compiler.compiler_type
@@ -234,11 +236,14 @@ def get_cmdclass():
                 opts.append('/DVERSION_INFO=\\"%s\\"' % self.distribution.get_version())
 
             # setup OpenMP support
-            openmp_enabled, needs_gomp = detect_openmp()
+            openmp_enabled, additional_libs = detect_openmp(self.compiler)
             if openmp_enabled:
                 warnings.warn('enabled openmp')
-                omp_compiler_args = ['-fopenmp']
-                omp_libraries = ['-lgomp'] if needs_gomp else []
+                if sys.platform == 'darwin':
+                    omp_compiler_args = ['-fopenmp=libiomp5']
+                else:
+                    omp_compiler_args = ['-fopenmp']
+                omp_libraries = ['-l%s' % l for l in additional_libs]
                 omp_defines = [('USE_OPENMP', None)]
             # debug
             dbg_flag = ['-g0' if not self.debug else '-g']

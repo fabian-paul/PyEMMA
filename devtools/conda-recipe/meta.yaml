@@ -1,8 +1,9 @@
 package:
   name: pyemma-dev
   # version number: [base tag]+[commits-upstream]_[git_hash]
-  # eg. v2.0+0_g8824162
-  version: {{ GIT_DESCRIBE_TAG[1:] + '+' + GIT_BUILD_STR}}
+  # eg. 2.0+0_g8824162
+  version: {{ GIT_DESCRIBE_TAG[1:] + '+' + GIT_DESCRIBE_NUMBER + '.' + GIT_DESCRIBE_HASH}}
+
 source:
   path: ../..
   # borked, but preferable, because it creates a "clean" working copy locally.
@@ -15,10 +16,19 @@ build:
    - OMP_NUM_THREADS
    - PYEMMA_NJOBS
   script: python setup.py install --single-version-externally-managed --record record.txt
+  # workaround for bpo-24935, the compiler jinja2 template sets CC, but LDSHARED is not being set accordingly by distutils.sysconfig.
+  script: LDSHARED="$CC -shared" python setup.py install --single-version-externally-managed --record record.txt # [linux]
 
 requirements:
   build:
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
+    - llvm-openmp # [osx]
+    - intel-openmp # [osx]
+
+  host:
     - cython
+    - intel-openmp # [osx]
     - mdtraj
     # actually we could build with np18, but fastcluster (dep of mdtraj, we link against) is only avail for 1.9
     - numpy 1.9.*  # [not (win and (py35 or py36))]
@@ -27,19 +37,21 @@ requirements:
     - python
     - scipy
     - setuptools
+    # use build flags (eg. CFLAGS etc) from conda-forge
     - toolchain
 
   run:
-    - bhmm >=0.6,<0.7
+    - bhmm >=0.6.3,<0.7
     - decorator >=4.0.0
     - h5py
+    - intel-openmp # [osx]
     - matplotlib
-    - mdtraj
+    - mdtraj >=1.8
     - mock # TODO: remove when py3k only.
     - msmtools >=1.2
-    - numpy >=1.9,<1.14  # [not (win and (py35 or py36))]
-    - numpy >=1.9,<1.14  # [win and py35]
-    - numpy >=1.11,<1.14 # [win and py36]
+    - numpy >=1.9  # [not (win and (py35 or py36))]
+    - numpy >=1.9  # [win and py35]
+    - numpy >=1.11 # [win and py36]
     - pathos
     - psutil >3.1
     - python
@@ -48,7 +60,7 @@ requirements:
     - setuptools
     - six >=1.10
     - thermotools >=0.2.6
-    - tqdm
+    - tqdm >=4.23
 
 test:
   source_files:
