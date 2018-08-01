@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import numpy as _np
+from .sort_real_schur import sort_real_schur
 from ..util import ZeroRankError as _ZeroRankError
 
 __author__ = 'noe'
@@ -295,33 +296,6 @@ def eig_corr(C0, Ct, epsilon=1e-10, method='QR', sign_maxelement=False):
     # return result
     return l, R
 
-def sort_schur(T, Z, z=1.0):
-    # TODO: replace by python implementation, once it is ready
-    import os
-    import tempfile
-    import socket
-    import threading
-    tempid = '%s/%s-%d-%d-' % (tempfile.gettempdir(), socket.gethostname(), os.getpid(), threading.get_ident())
-    _np.savetxt(tempid + 'unordered-T.txt', T)
-    _np.savetxt(tempid + 'unordered-Z.txt', Z)
-    path = os.path.dirname(os.path.abspath(__file__))
-    if _np.isinf(z):
-        target = 'Inf'
-    else:
-        target = '%f' % z
-    cmd = 'matlab -nodisplay -nosplash -nodesktop -nojvm -r "global tid; tid=\'%s\'; global target; target=%s; run(\'%s/sortschur.m\'); exit"' % (
-            tempid, target, path)
-    erl = os.system(cmd + ' >/dev/null')
-    if erl != 0:
-        raise RuntimeError('Could not sort Schur vectors.')
-    T = _np.loadtxt(tempid + 'ordered-T.txt')
-    Z = _np.loadtxt(tempid + 'ordered-Z.txt')
-    os.unlink(tempid + 'unordered-T.txt')
-    os.unlink(tempid + 'unordered-Z.txt')
-    os.unlink(tempid + 'ordered-T.txt')
-    os.unlink(tempid + 'ordered-Z.txt')
-    return T, Z
-
 
 def valid_schur_dims(T):
     r = _np.where(_np.abs(_np.diag(T, -1)) > 100 * _np.finfo(_np.float64).eps)[0]
@@ -338,7 +312,7 @@ def schur_corr(C0, Ct, epsilon=1e-10,  method='QR', sort=True, return_T=False, z
     eigenvalues_orig = _np.diag(scipy.linalg.rsf2csf(T, Z)[0])
 
     if sort:
-        T, Z = sort_schur(T, Z, z=z)
+        T, Z = sort_real_schur(T, Z, z=z, b=0)
 
     # transform the Schur vectors back to the old basis
     R = _np.dot(L, Z)
