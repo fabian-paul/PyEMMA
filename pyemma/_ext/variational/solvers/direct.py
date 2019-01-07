@@ -303,7 +303,7 @@ def valid_schur_dims(T):
     return s
 
 
-def schur_corr(C0, Ct, epsilon=1e-10,  method='QR', sort=True, return_T=False, z=1.0):
+def schur_corr(C0, Ct, epsilon=1e-10,  method='QR', sort=True, return_T=False, z=1.0, dim=None):
     import scipy
     L = spd_inv_split(C0, epsilon=epsilon, method=method, canonical_signs=True)
     Ct_trans = _np.dot(_np.dot(L.T, Ct), L)
@@ -312,7 +312,11 @@ def schur_corr(C0, Ct, epsilon=1e-10,  method='QR', sort=True, return_T=False, z
     eigenvalues_orig = _np.diag(scipy.linalg.rsf2csf(T, Z)[0])
 
     if sort:
-        Z, T, _ = sort_real_schur(Z, T, z=z, b=0)
+        if dim is None:
+            b = 0
+        else:
+            b = dim
+        Z, T, _ = sort_real_schur(Z, T, z=z, b=b)
 
     # transform the Schur vectors back to the old basis
     R = _np.dot(L, Z)

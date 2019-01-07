@@ -218,7 +218,11 @@ class TICA(TICABase, SerializableMixIn):
         self.logger.debug("diagonalize Cov and Cov_tau.")
         try:
             if self.schur:
-                eigenvalues, eigenvectors, self._T, self._eigenvalues_orig = schur_corr(self.cov, self.cov_tau, epsilon=self.epsilon, return_T=True, z=self.z)
+                if self.dim == -1:  # keep all dimensions
+                    dim = None
+                else:
+                    dim = self.dim
+                eigenvalues, eigenvectors, self._T, self._eigenvalues_orig = schur_corr(self.cov, self.cov_tau, epsilon=self.epsilon, return_T=True, z=self.z, dim=dim)
                 self._valid_dims = valid_schur_dims(self._T)
             else:
                 eigenvalues, eigenvectors = eig_corr(self.cov, self.cov_tau, self.epsilon, sign_maxelement=True)
