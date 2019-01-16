@@ -14,20 +14,6 @@ import pyemma.coordinates.tests.util as util
 from pyemma.coordinates.data import FragmentedTrajectoryReader
 
 
-def _skip_stride_handling_old_mdtraj():
-    # newer versions do not need multiplying n_frames with stride for certain formats.
-    from distutils.version import LooseVersion
-    from mdtraj import version as md_version
-
-    if LooseVersion(md_version.version) > LooseVersion('1.9.1'):
-        return False
-
-    return True
-
-
-skip_stride_handling_old_mdtraj = _skip_stride_handling_old_mdtraj()
-
-
 def max_chunksize_from_config(itemsize):
     from pyemma import config
     from pyemma.util.units import string_to_bytes
@@ -123,7 +109,7 @@ class TestReaders(six.with_metaclass(GenerateTestMatrix, unittest.TestCase)):
                     'xtc',
                     'trr',
                     'dcd',
-                    'h5',
+                    'h5',  # pyemma H5Reader
                     'csv',
                     )
     # transform data or not (identity does not change the data, but pushes it through a StreamingTransformer).
@@ -179,10 +165,17 @@ class TestReaders(six.with_metaclass(GenerateTestMatrix, unittest.TestCase)):
     def teardown_class(cls):
         shutil.rmtree(cls.tempdir, ignore_errors=True)
 
+    # H5Reader does not need a topology (and gets only selected in case we do not pass it).
+    def setUp(self):
+        if 'h5' in self._testMethodName:
+            self.pdb_file_bak = self.pdb_file
+            self.pdb_file = None
+
+    def tearDown(self):
+        if 'h5' in self._testMethodName:
+            self.pdb_file = self.pdb_file_bak
+
     def _test_lagged_reader(self, file_format, stride, skip, chunksize, lag):
-        # TODO: remove this, when mdtraj-2.0 is released.
-        if file_format == 'dcd' and stride > 1 and skip_stride_handling_old_mdtraj:
-            raise unittest.SkipTest('wait for mdtraj 2.0')
         trajs = self.test_trajs[file_format]
         reader = coor.source(trajs, top=self.pdb_file, chunksize=chunksize)
 
@@ -237,10 +230,6 @@ class TestReaders(six.with_metaclass(GenerateTestMatrix, unittest.TestCase)):
     def _test_fragment_reader(self, file_format, stride, lag, chunksize):
         trajs = self.test_trajs[file_format]
 
-        # TODO: remove this, when mdtraj-2.0 is released.
-        if file_format == 'dcd' and stride > 1 and skip_stride_handling_old_mdtraj:
-            raise unittest.SkipTest('wait for mdtraj 2.0')
-
         reader = coor.source([trajs], top=self.pdb_file, chunksize=chunksize)
         assert isinstance(reader, FragmentedTrajectoryReader)
 
@@ -272,10 +261,6 @@ class TestReaders(six.with_metaclass(GenerateTestMatrix, unittest.TestCase)):
             assert itraj == 0 # only one trajectory
 
     def _test_base_reader(self, file_format, stride, skip, chunksize, transform):
-        # TODO: remove this, when mdtraj-2.0 is released.
-        if file_format == 'dcd' and stride > 1 and skip_stride_handling_old_mdtraj:
-            raise unittest.SkipTest('wait for mdtraj 2.0')
-
         trajs = self.test_trajs[file_format]
         reader = coor.source(trajs, top=self.pdb_file, chunksize=chunksize)
 

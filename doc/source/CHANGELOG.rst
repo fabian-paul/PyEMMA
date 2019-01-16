@@ -7,11 +7,15 @@ Changelog
 **New features**:
 
 - msm: for Bayesian MSMs we show an optional progress bar for the counting computation. #1344
+- msm: ImpliedTimescales allow to only store timescales and its samples for the purpose of saving memory. #1377
 
-**Fixes:
+
+**Fixes**:
 
 - msm: fix connected sets for Bayesian MSMs in case the mincount connectivity (ergodic cutoff) parameter truncated
   the count matrix. #1343
+- plots: fix vmin, vmax keyword arguments for plot_contour(). #1376
+
 
 
 **Contributors**:

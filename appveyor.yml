@@ -11,23 +11,22 @@ environment:
 # TODO: this would involve building c++ with a recent compiler
 #    - CONDA_PY: "27"
 
-    - CONDA_PY: "35"
-      NUMPY: "--numpy=112" # "old" numpy
     - CONDA_PY: "36"
+      NUMPY: "--numpy=112" # "old" numpy
+    - CONDA_PY: "37"
       NUMPY: "" # numpy unpinned
 
 install:
   - "SET PATH=%MINICONDA_PYTHON%;%MINICONDA_PYTHON%\\Scripts;%PATH%;"
 
   - conda config --set always_yes true
-  - conda config --add channels conda-forge
   - conda install -q conda-build=3
 
 build: false # Not a C# project, build stuff at the test step instead.
 
 test_script:
   # run testsuite and upload test results to AppVeyor; return exit code of testsuite
-  - "%CMD_IN_ENV% conda build -q devtools/conda-recipe %CONDA_NPY%"
+  - "%CMD_IN_ENV% conda build -c conda-forge -q devtools/conda-recipe %CONDA_NPY%"
 
 on_finish:
   # upload test results to AppVeyor
@@ -35,3 +34,8 @@ on_finish:
      $wc = New-Object 'System.Net.WebClient';
      $wc.UploadFile("https://ci.appveyor.com/api/testresults/xunit/$($env:APPVEYOR_JOB_ID)", "C:/Users/appveyor/reports/junit.xml")
 
+after_test:
+  - ps: |
+      $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
+      Invoke-WebRequest -Uri 'https://codecov.io/bash' -OutFile codecov.sh
+      bash codecov.sh -f 'c:\\users\appyeyor\\coverage.xml'

@@ -31,21 +31,15 @@ import random
 import tempfile
 
 from pyemma._base.progress.reporter import ProgressReporterMixin
-from pyemma._base.serialization.serialization import SerializableMixIn
 from pyemma.coordinates.clustering.interface import AbstractClustering
 from pyemma.util.annotators import fix_docs
 from pyemma.util.units import bytes_to_string
 
-from pyemma.util.contexts import random_seed
+from pyemma.util.contexts import random_seed, nullcontext
 import numpy as np
 
 
 __all__ = ['KmeansClustering', 'MiniBatchKmeansClustering']
-
-
-@contextmanager
-def _dummy():
-    yield
 
 
 @fix_docs
@@ -151,8 +145,8 @@ class KmeansClustering(AbstractClustering, ProgressReporterMixin):
                 self._fixed_seed = random.randint(0, 2**32-1)
         elif types.is_int(val):
             if val < 0 or val > 2**32-1:
-                self.logger.warn("seed has to be positive (or smaller than 2**32-1)."
-                                 " Seed will be chosen randomly.")
+                self.logger.warning("seed has to be positive (or smaller than 2**32-1)."
+                                    " Seed will be chosen randomly.")
                 self.fixed_seed = False
             else:
                 self._fixed_seed = val
@@ -206,7 +200,7 @@ class KmeansClustering(AbstractClustering, ProgressReporterMixin):
 
     def _estimate(self, iterable, **kw):
         self._init_estimate()
-        ctx = _dummy() if 'data' not in self._progress_registered_stages else self._progress_context(stage='data')
+        ctx = nullcontext() if 'data' not in self._progress_registered_stages else self._progress_context(stage='data')
         # collect the data only if, we have not done this previously (eg. keep_data=True)
         # or the centers are not initialized.
         if not self._check_resume_iteration() or not self._in_memory_chunks_set:
@@ -246,9 +240,9 @@ class KmeansClustering(AbstractClustering, ProgressReporterMixin):
                 self._converged = True
                 self.logger.debug("Cluster centers converged after %i steps.", iterations + 1)
             else:
-                self.logger.warn("Algorithm did not reach convergence criterion"
-                                 " of %g in %i iterations. Consider increasing max_iter.",
-                                 self.tolerance, self.max_iter)
+                self.logger.warning("Algorithm did not reach convergence criterion"
+                                    " of %g in %i iterations. Consider increasing max_iter.",
+                                    self.tolerance, self.max_iter)
 
         return self
 
@@ -321,7 +315,7 @@ class KmeansClustering(AbstractClustering, ProgressReporterMixin):
                 context = self._progress_context(stage=0)
             else:
                 callback = None
-                context = _dummy()
+                context = nullcontext()
             with context:
                 self.clustercenters = self._inst.init_centers_KMpp(self._in_memory_chunks, self.fixed_seed, self.n_jobs,
                                                                    callback)

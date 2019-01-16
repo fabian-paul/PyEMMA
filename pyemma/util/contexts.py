@@ -86,16 +86,6 @@ def settings(**kwargs):
 
 
 @contextmanager
-def attribute(obj, attr, val):
-    previous = getattr(obj, attr)
-    setattr(obj, attr, val)
-    try:
-        yield
-    finally:
-        setattr(obj, attr, previous)
-
-
-@contextmanager
 def named_temporary_file(mode='w+b', prefix='', suffix='', dir=None):
     from tempfile import NamedTemporaryFile
     ntf = NamedTemporaryFile(mode=mode, suffix=suffix, prefix=prefix, dir=dir, delete=False)
@@ -147,3 +137,19 @@ class Capturing(list):
         self.extend(self._stringio.getvalue().splitlines())
         del self._stringio  # free up some memory
         setattr(sys, self._which, self._stream)
+
+
+class nullcontext(object):
+    """Context manager that does no additional processing.
+    Used as a stand-in for a normal context manager, when a particular
+    block of code is only sometimes used with a normal context manager:
+    cm = optional_cm if condition else nullcontext()
+    with cm:
+        # Perform operation, using optional_cm if condition is True
+    """
+    def __init__(self, enter_result=None):
+        self.enter_result = enter_result
+    def __enter__(self):
+        return self.enter_result
+    def __exit__(self, *excinfo):
+        pass
